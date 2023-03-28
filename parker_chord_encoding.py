@@ -9,9 +9,6 @@ from tqdm import tqdm
 
 from primePy import primes
 
-TSTEP = 200 # timestep delimiting character
-REST = 201 # charater for rest
-
 
 def GetInterval(root, note):
     """
@@ -42,22 +39,34 @@ def CheckPairAtPosition(note_seq):
     """
     root = note_seq[0]
 
+    # boolean indicators for intervals
+    min_second, maj_second, min_third,maj_third, fourth,  = [False] * 5
+    dim_fifth, fifth, min_six, maj_six, min_seven, maj_seven = [False] * 6
+
     # loop over all positions in a chord (excluding first)
     for note in note_seq[1:]:
-        # boolean indicators for intervals
-        # maj_third, min_third, fifth = False, False, False
-        maj_third, min_third, fifth, min_seven, maj_seven = False, False, False, False, False
-
         # Get the interval between the root and current note
         interval = GetInterval(root, note)
 
         # Update the interval indicators
-        if interval == 3:
+        if interval == 1:
+            min_second = True
+        elif interval == 2:
+            maj_second = True
+        elif interval == 3:
             min_third = True
         elif interval == 4:
             maj_third = True
+        elif interval == 5:
+            fourth = True
+        elif interval == 6:
+            dim_fifth = True
         elif interval == 7:
             fifth = True
+        elif interval == 8:
+            min_six = True
+        elif interval == 9:
+            maj_six = True
         elif interval == 10:
             min_seven = True
         elif interval == 11:
@@ -69,13 +78,29 @@ def CheckPairAtPosition(note_seq):
     if maj_seven:
         return '2-maj7', root # indicates a chord type and its root
     
-    # if a minor pair is present
+    # if a minor 7 pair is present
     elif min_seven:
         return '2-min7', root 
+    
+    # if a major 6 pair is present
+    elif maj_six:
+        return '2-maj6', root 
+    
+    # if a minor 6 pair is present
+    elif min_six:
+        return '2-min6', root 
 
     # if a fifth pair is present
     elif fifth :
         return '2-fifth', root 
+    
+    # if a diminished fifth pair is present
+    elif dim_fifth :
+        return '2-dimfifth', root 
+    
+    # if a fourtj pair is present
+    elif fourth :
+        return '2-fourth', root 
     
     # If a major pair is present
     elif maj_third:
@@ -85,8 +110,17 @@ def CheckPairAtPosition(note_seq):
     elif min_third :
         return '2-min3', root 
     
+    # If a major pair is present
+    elif maj_second:
+        return '2-maj2', root 
+    
+    # if a minor pair is present
+    elif min_second :
+        return '2-min2', root 
+    
     # Ignore all other pairs
     else:
+        # print("Unchecked PAIR interval:", interval)
         return None
     
     
@@ -102,14 +136,16 @@ def Check3ChordAtPosition(note_seq):
 
     root = note_seq[0]
 
+    present_intervals = []
+
+    # boolean indicators for intervals
+    min_third, maj_third, dim_fifth, fifth, maj_six, min_seven, maj_seven = [False] * 7
+
     # loop over all positions in a chord (excluding first)
     for note in note_seq[1:]:
-        # boolean indicators for intervals
-        # maj_third, min_third, fifth = False, False, False
-        maj_third, min_third, dim_fifth, fifth, min_seven, maj_seven = False, False, False, False, False, False
-
         # Get the interval between the root and current note
         interval = GetInterval(root, note)
+        present_intervals.append(interval)
 
         # Update the interval indicators
         if interval == 3:
@@ -120,6 +156,8 @@ def Check3ChordAtPosition(note_seq):
             dim_fifth = True
         elif interval == 7:
             fifth = True
+        elif interval == 9:
+            maj_six = True
         elif interval == 10:
             min_seven = True
         elif interval == 11:
@@ -132,13 +170,17 @@ def Check3ChordAtPosition(note_seq):
         return '3-maj7', root # indicates a major chord and its root
     
     # If a dominant 7 chord is present
-    if maj_third and min_seven:
+    elif (maj_third and min_seven):
         return '3-dom7', root 
     
     # if a minor 7 chord is present
-    elif min_third and min_seven:
+    elif (min_third and min_seven) or (fifth and min_seven):
         return '3-min7', root 
 
+    # If a major 6 chord is present
+    elif maj_third and maj_six:
+        return '3-six', root 
+    
     # If a major chord is present
     elif maj_third and fifth:
         return '3-maj', root 
@@ -153,6 +195,7 @@ def Check3ChordAtPosition(note_seq):
     
     # Ignore all other chords
     else:
+        # print("Unchecked TRIPLE (intervals,note_seq):", present_intervals, note_seq)
         return None
     
 
@@ -166,15 +209,16 @@ def Check4ChordAtPosition(note_seq):
     """
 
     root = note_seq[0]
+    present_intervals = []
+
+    # boolean indicators for intervals
+    maj_third, min_third, dim_fifth, fifth, min_seven, maj_seven = False, False, False, False, False, False
 
     # loop over all positions in a chord (excluding first)
     for note in note_seq[1:]:
-        # boolean indicators for intervals
-        # maj_third, min_third, fifth = False, False, False
-        maj_third, min_third, dim_fifth, fifth, min_seven, maj_seven = False, False, False, False, False, False
-
         # Get the interval between the root and current note
         interval = GetInterval(root, note)
+        present_intervals.append(interval)
 
         # Update the interval indicators
         if interval == 3:
@@ -210,10 +254,11 @@ def Check4ChordAtPosition(note_seq):
     
     # Ignore all other chords
     else:
+        # print("Unchecked QUAD (intervals, note_seq):", present_intervals, note_seq)
         return None
     
 
-def EncodeTimeStep(played_notes, lim=4, rest_token=-2):
+def EncodeTimeStep(played_notes, lim=4, rest_token=281):
     """
     Return a number indicating the note, pair, 3 note chord, or 4 note chord being played at a timestep
     Args:
@@ -222,8 +267,8 @@ def EncodeTimeStep(played_notes, lim=4, rest_token=-2):
         token: a number representing the not, pair, of 3 note chord, or 4 note chord curently being played
     """
     # Define the acceptable pairs, three note chords, and four note chords
-    pairs = ['maj7','min7','fifth','maj3','min3']
-    triplets = ['maj7','dom7','min7','maj','min','dim']
+    pairs = ['maj7','min7','maj6','min6','fifth','dimfifth','fourth','maj3','min3','maj2','min2']
+    triplets = ['maj7','dom7','min7','six','maj','min','dim']
     quads = ['maj7','min7','dom7','halfdim']
 
     # Def the number of unique pairs, three note chords, and four note chords
@@ -242,15 +287,6 @@ def EncodeTimeStep(played_notes, lim=4, rest_token=-2):
     triplet_num_map = {val:inx for inx, val in enumerate(triplets)}
     quad_num_map = {val:inx for inx, val in enumerate(quads)}
 
-    # Drop midi values below 21
-    played_notes = played_notes[played_notes > 20]
-
-    # Translate all notes being played to be 0-11
-    played_notes = (played_notes - 21) % 12
-
-    # Get rid of repeated notes, sort the notes and trim to 4
-    played_notes = np.sort(np.unique(played_notes))[:lim]
-
     # if one note is being played return the note number plus 2 (translated bc 0 and 1 and SOS and EOS tokens)
     if len(played_notes) == 1:
         return played_notes.item(0) 
@@ -260,13 +296,14 @@ def EncodeTimeStep(played_notes, lim=4, rest_token=-2):
 
     # While a chord has not been identified and we have note tried all options
         # Allow each note to be the root and check the chords present
-    while len(present_chords) == 0 and count+1 != lim:
+    while len(present_chords) == 0 and count != lim:
+    # for _ in range(len(played_notes)):
         # Identify the notes being played
         if len(played_notes) == 2:
             chord_tup = CheckPairAtPosition(played_notes)
-        if len(played_notes) == 3:
+        elif len(played_notes) == 3:
             chord_tup = Check3ChordAtPosition(played_notes)
-        if len(played_notes) == 4:
+        elif len(played_notes) == 4:
             chord_tup = Check4ChordAtPosition(played_notes)
 
         # if an accepted chord is being played add it to the chord list
@@ -290,6 +327,7 @@ def EncodeTimeStep(played_notes, lim=4, rest_token=-2):
 
             else: # if chord_size == '4':
                 # Find the index of the present pair
+                # print('QUAD')
                 quad_inx = quad_num_map[chord_type]
 
                 # map the pair to is appropriate number
@@ -299,12 +337,17 @@ def EncodeTimeStep(played_notes, lim=4, rest_token=-2):
 
         # Get next circular rotation of played notes (this effectively sets a new root)
         played_notes = np.roll(played_notes, 1)
+        # played_notes = np.concatenate((played_notes[1:], played_notes[:1]))
 
         # increment count
         count += 1
 
     # If the notes being played are note a valid chord then return a rest
     if len(present_chords) == 0:
+        if len(played_notes) == 3:
+            print("Unchecked TRIPLE notes:",played_notes)
+        if len(played_notes) == 4:
+            print("Unchecked QUAD notes:",played_notes)
         return rest_token
     
     # Return the first chord identified
@@ -321,15 +364,15 @@ def GenerateReverseEncodeTimestepMap(pairs=None, triplets=None, quads = None):
     """
     # Define the acceptable pairs, three note chords, and four note chords
     if pairs is None:
-        pairs = ['maj7','min7','fifth','maj3','min3']
+        pairs = ['maj7','min7','maj6','min6','fifth','dimfifth','fourth','maj3','min3','maj2','min2']
 
         # The interval (in half steps) of a paired note from its root
-        pair_intervals = [11, 10, 7, 4, 3]
+        pair_intervals = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     if triplets is None:
-        triplets = ['maj7','dom7','min7','maj','min','dim']
+        triplets = ['maj7','dom7','min7','six','maj','min','dim']
 
         # The intervals (in half steps) of a triplet notes from its root
-        triplet_intervals = [[4,11], [4,10], [3,10], [4,7], [3,7], [3,6]]
+        triplet_intervals = [[4,11], [4,10], [3,10], [4,9], [4,7], [3,7], [3,6]]
 
     if quads is None:
         quads = ['maj7','min7','dom7','halfdim']
@@ -348,7 +391,7 @@ def GenerateReverseEncodeTimestepMap(pairs=None, triplets=None, quads = None):
     # total_quads = num_quads * 12
 
     # Map single notes back to their original number (these stay the sampe)
-    note_map = {i:[i] for i in range(12)}
+    note_map = {i:i for i in range(12)}
 
     # Map each pair to a list of its notes
     pair_map = {}
@@ -445,9 +488,14 @@ def GenerateReverseEncodeTimestepMap(pairs=None, triplets=None, quads = None):
     chord_map.update(triplet_map)
     chord_map.update(quad_map)
 
-    # print(list(chord_map.keys()))
+    print(list(chord_map.keys()))
     return chord_map
 
+
+
+
+TSTEP = 280 # timestep delimiting character
+REST = 281 # charater for rest
 
 def get_chord4_encoded_note_sequence(data): # old linker linker='-'
 # def get_encoded_note_sequence(data): # old linker linker='-'
@@ -476,41 +524,6 @@ def get_chord4_encoded_note_sequence(data): # old linker linker='-'
             seq.append(TSTEP) # value for timestep delimiter
 
     return seq, no_notes
-
-
-def SeqToBassMidi(seq_list, fname, low_a=33, fs=4.0, rest=201):
-    bass_midi = pretty_midi.PrettyMIDI()
-    bass_program = pretty_midi.instrument_name_to_program('Electric Bass (finger)')
-    bass = pretty_midi.Instrument(program=bass_program)
-
-    i = 1.0
-    dur = 1/fs
-
-    decode_map = GenerateReverseEncodeTimestepMap()
-    
-    for seq in seq_list:
-        # Check all values after SOS
-        for val in seq[1:]:
-            # if value is not EOS
-            if val != 1:
-
-                # Translate back to zero base
-                val -= 2
-
-                if val == rest:
-                    notes = -1
-                else:
-                    notes = decode_map[val]
-
-                for note in notes:
-                    if note > -1:
-                        note = pretty_midi.Note(velocity=100, pitch=note+low_a, start=i*dur, end=dur+(i*dur))
-                        bass.notes.append(note)
-
-                i += 1
-
-    bass_midi.instruments.append(bass)
-    bass_midi.write(fname + '.mid')
 
 
 if __name__ == '__main__':
